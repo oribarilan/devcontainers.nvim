@@ -1,7 +1,7 @@
 {
   "name": "nvim-with-bob",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl ca-certificates unzip build-essential pkg-config && curl -fsSL https://sh.rustup.rs | sh -s -- -y && export PATH=$HOME/.cargo/bin:$PATH && cargo install bob-nvim && bob --version || true",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl ca-certificates unzip build-essential pkg-config wget luarocks && curl -fsSL https://sh.rustup.rs | sh -s -- -y && export PATH=$HOME/.cargo/bin:$PATH && cargo install bob-nvim && bob --version || true",
   "remoteEnv": {
     "PATH": "${containerEnv:HOME}/.cargo/bin:${containerEnv:HOME}/.local/share/bob/nvim-bin:${containerEnv:PATH}"
   }

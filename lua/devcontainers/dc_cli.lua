@@ -111,7 +111,8 @@ function M.generate_mount_args(config)
     -- verify the resolved path exists
     if utils.dir_exists(host_dev_path) then
       -- mount to the same path inside container (maintaining the original path structure)
-      local container_dev_path = host_dev_path
+      -- but ensure we use the expanded path, not the original tilde path
+      local container_dev_path = utils.expand_path(config.dev_path):gsub("^/Users/[^/]+", "/home/vscode")
       
       debug.info("mounting dev path: " .. host_dev_path .. " -> " .. container_dev_path)
       vim.list_extend(mount_args, { "--mount", "type=bind,source=" .. host_dev_path .. ",target=" .. container_dev_path })
@@ -200,29 +201,26 @@ function M.devcontainer_enter(workspace_folder, config)
     debug.info("detected host nvim version: " .. host_version)
   end
   
-  -- build the command to run inside container
+  -- build command to use bob run for specific version (avoids conflicts)
   local container_cmd = {}
   
   -- set up PATH to include bob directories
   table.insert(container_cmd, "export PATH=$HOME/.cargo/bin:$HOME/.local/share/bob/nvim-bin:$PATH")
   
   if host_version then
-    -- try to install the version in background, but don't fail if it can't
-    table.insert(container_cmd, "($HOME/.cargo/bin/bob install " .. host_version .. " >/dev/null 2>&1 &)")
-    -- give bob a moment to start the download
-    table.insert(container_cmd, "sleep 2")
+    -- install version if needed, then run it directly (no global version change)
+    table.insert(container_cmd, "$HOME/.cargo/bin/bob install " .. host_version .. " || true")
+    table.insert(container_cmd, "$HOME/.cargo/bin/bob run " .. host_version)
+  else
+    -- fallback to installed nvim or install stable
+    table.insert(container_cmd, "nvim || ($HOME/.cargo/bin/bob install stable && $HOME/.cargo/bin/bob run stable)")
   end
   
-  -- use the best available nvim (bob proxy, then bob path, then system nvim)
-  table.insert(container_cmd, "nvim || $HOME/.local/share/bob/nvim-bin/nvim || /usr/bin/nvim")
-  
-  -- join commands with &&
   local full_cmd = table.concat(container_cmd, " && ")
-  
   debug.info("container command: " .. full_cmd)
   
-  -- open in new terminal with interactive shell to ensure PATH is loaded
-  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash -i -c '" .. full_cmd .. "'")
+  -- open in new terminal
+  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash -c '" .. full_cmd .. "'")
   
   return true
 end
