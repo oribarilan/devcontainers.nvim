@@ -19,6 +19,14 @@ function M.setup(user_config)
   local config = require("devcontainers.config")
   state.config = config.merge(user_config, config.defaults)
   
+  -- Validate merged configuration
+  local valid, err = config.validate(state.config)
+  if not valid then
+    local error_msg = "devcontainers.nvim configuration error: " .. err
+    vim.notify(error_msg, vim.log.levels.ERROR)
+    error(error_msg)
+  end
+  
   -- Initialize debug system
   require("devcontainers.debug").setup(state.config)
   

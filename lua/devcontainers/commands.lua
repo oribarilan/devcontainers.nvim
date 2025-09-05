@@ -9,20 +9,45 @@ local commands = {}
 -- DevcontainerUp command
 commands.DevcontainerUp = {
   name = "DevcontainerUp",
-  desc = "Spins up containers with devcontainer.json settings applied",
+  desc = "Spins up containers with devcontainer.json settings and nvim config mounts",
   handler = function()
     debug.info("executing DevcontainerUp command")
-    dc_cli.devcontainer_up()
+    
+    -- get current config
+    local devcontainers = require("devcontainers")
+    local config = devcontainers.get_config()
+    
+    dc_cli.devcontainer_up(nil, config)
   end,
 }
 
 -- DevcontainerEnter command
 commands.DevcontainerEnter = {
   name = "DevcontainerEnter",
-  desc = "enter devcontainer with nvim",
+  desc = "enter devcontainer with nvim, auto-install host version with bob",
   handler = function()
     debug.info("executing DevcontainerEnter command")
-    dc_cli.devcontainer_enter()
+    
+    -- get current config
+    local devcontainers = require("devcontainers")
+    local config = devcontainers.get_config()
+    
+    dc_cli.devcontainer_enter(nil, config)
+  end,
+}
+
+-- DevcontainerRebuild command
+commands.DevcontainerRebuild = {
+  name = "DevcontainerRebuild",
+  desc = "Fully rebuild devcontainer including postCreateCommand execution",
+  handler = function()
+    debug.info("executing DevcontainerRebuild command")
+    
+    -- get current config
+    local devcontainers = require("devcontainers")
+    local config = devcontainers.get_config()
+    
+    dc_cli.devcontainer_rebuild(nil, config)
   end,
 }
 
