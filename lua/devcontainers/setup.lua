@@ -22,6 +22,9 @@ function M.init(user_config)
 
   -- Setup basic autocommands
   M.setup_autocommands(user_config)
+  
+  -- Setup commands
+  M.setup_commands(user_config)
 
   setup_state.initialized = true
   debug.log("Setup initialization complete")
@@ -48,12 +51,24 @@ function M.setup_autocommands(user_config)
   })
 end
 
+-- Setup commands
+function M.setup_commands(user_config)
+  debug.log("Setting up commands...")
+  
+  local commands = require("devcontainers.commands")
+  commands.setup()
+end
+
 -- Cleanup setup
 function M.cleanup()
   if setup_state.augroup then
     vim.api.nvim_del_augroup_by_id(setup_state.augroup)
     setup_state.augroup = nil
   end
+  
+  -- cleanup commands
+  local commands = require("devcontainers.commands")
+  commands.cleanup()
   
   setup_state.initialized = false
   debug.log("Setup cleanup complete")
