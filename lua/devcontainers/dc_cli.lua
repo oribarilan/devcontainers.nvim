@@ -71,50 +71,12 @@ function M.reset_cache()
   debug.debug("devcontainer cli cache reset")
 end
 
--- run a devcontainer command
-function M.run_command(args, opts)
-  if not M.ensure_available() then
-    return false, "devcontainer CLI not available"
-  end
-  
-  opts = opts or {}
-  local cmd = "devcontainer " .. (args or "")
-  
-  debug.debug("running devcontainer command: " .. cmd)
-  
-  local handle = io.popen(cmd .. " 2>&1")
-  if not handle then
-    local error_msg = "failed to execute devcontainer command: " .. cmd
-    debug.error(error_msg)
-    return false, error_msg
-  end
-  
-  local output = handle:read("*a")
-  local success = handle:close()
-  
-  if success then
-    debug.debug("devcontainer command succeeded")
-    return true, output
-  else
-    debug.error("devcontainer command failed: " .. (output or "unknown error"))
-    return false, output
-  end
-end
 
 -- generate mount arguments for nvim config
 function M.generate_mount_args(config)
-  local args = {}
-  
   if not config or not config.nvim or not config.nvim.host_config then
-    debug.debug("no nvim.host_config provided, skipping config mount generation")
-    return args
-  end
-  
-  -- Check if host config directory actually exists before attempting mount
-  local utils = require("devcontainers.utils")
-  if not utils.dir_exists(config.nvim.host_config) then
-    debug.warn("nvim host_config directory does not exist: " .. config.nvim.host_config .. ", skipping mount")
-    return args
+    debug.debug("no nvim.host_config provided, skipping config mount")
+    return {}
   end
   
   local utils = require("devcontainers.utils")
@@ -126,37 +88,48 @@ function M.generate_mount_args(config)
   
   -- verify the resolved path exists
   if not utils.dir_exists(host_path) then
-    debug.warn("resolved nvim config path does not exist: " .. host_path)
-    debug.warn("skipping nvim config mount")
-    return args
+    debug.warn("nvim config path does not exist: " .. host_path .. ", skipping mount")
+    return {}
   end
   
-  -- Docker requires absolute paths - use common devcontainer paths
+  -- resolve container path variables
   local container_path = nvim_config.container_config
-  if container_path:match("^%$HOME") then
-    -- Replace $HOME with /home/vscode (default devcontainer user home)
-    container_path = container_path:gsub("^%$HOME", "/home/vscode")
-  elseif container_path:match("^%${containerEnv:HOME}") then
-    -- Handle ${containerEnv:HOME} format
-    container_path = container_path:gsub("^%${containerEnv:HOME}", "/home/vscode")
+    :gsub("^%$HOME", "/home/vscode")
+    :gsub("^%${containerEnv:HOME}", "/home/vscode")
+  
+  debug.info("mounting nvim config: " .. host_path .. " -> " .. container_path)
+  
+  return { "--mount", "type=bind,source=" .. host_path .. ",target=" .. container_path }
+end
+
+-- helper function to execute devcontainer command in terminal
+local function execute_in_terminal(cmd_args, action_name)
+  debug.info("executing " .. action_name .. ": " .. table.concat(cmd_args, " "))
+  
+  vim.cmd("split")
+  vim.cmd("resize 15")
+  vim.cmd("terminal " .. table.concat(cmd_args, " "))
+  
+  return true
+end
+
+-- helper function to build base devcontainer up command
+local function build_up_command(workspace_folder, config, rebuild_flags)
+  workspace_folder = workspace_folder or vim.loop.cwd()
+  
+  local cmd_args = { "devcontainer", "up", "--workspace-folder", workspace_folder }
+  
+  -- add rebuild flags if provided
+  if rebuild_flags then
+    vim.list_extend(cmd_args, rebuild_flags)
   end
   
-  debug.info("generating mount for nvim config:")
-  debug.info("  host: " .. host_path)
-  debug.info("  container: " .. container_path)
+  -- add dynamic mounts if config is provided
+  if config then
+    vim.list_extend(cmd_args, M.generate_mount_args(config))
+  end
   
-  -- build mount string according to devcontainer CLI format
-  -- Format: type=<bind|volume>,source=<source>,target=<target>[,external=<true|false>]
-  local mount_options = "type=bind,source=" .. host_path .. ",target=" .. container_path
-  
-  debug.info("mount string: " .. mount_options)
-  
-  table.insert(args, "--mount")
-  table.insert(args, mount_options)
-  
-  debug.debug("generated mount arg: " .. mount_options)
-  
-  return args
+  return cmd_args, workspace_folder
 end
 
 -- run devcontainer up command
@@ -165,28 +138,23 @@ function M.devcontainer_up(workspace_folder, config)
     return false
   end
   
-  workspace_folder = workspace_folder or vim.loop.cwd()
-  debug.info("starting devcontainer up for workspace: " .. workspace_folder)
+  local cmd_args, ws_folder = build_up_command(workspace_folder, config)
+  debug.info("starting devcontainer up for workspace: " .. ws_folder)
   
-  -- build command arguments
-  local cmd_args = { "devcontainer", "up", "--workspace-folder", workspace_folder }
-  
-  -- add dynamic mounts if config is provided
-  if config then
-    local mount_args = M.generate_mount_args(config)
-    for _, arg in ipairs(mount_args) do
-      table.insert(cmd_args, arg)
-    end
+  return execute_in_terminal(cmd_args, "devcontainer up")
+end
+
+-- run devcontainer up with rebuild flags to fully rebuild the container
+function M.devcontainer_rebuild(workspace_folder, config)
+  if not M.ensure_available() then
+    return false
   end
   
-  debug.info("executing command: " .. table.concat(cmd_args, " "))
+  local rebuild_flags = { "--remove-existing-container", "--build-no-cache" }
+  local cmd_args, ws_folder = build_up_command(workspace_folder, config, rebuild_flags)
+  debug.info("rebuilding devcontainer for workspace: " .. ws_folder)
   
-  -- open in terminal instead of notifications for better UX
-  vim.cmd("split")
-  vim.cmd("resize 15")
-  vim.cmd("terminal " .. table.concat(cmd_args, " "))
-  
-  return true
+  return execute_in_terminal(cmd_args, "devcontainer rebuild")
 end
 
 -- run devcontainer exec command to enter the container with nvim
@@ -228,41 +196,6 @@ function M.devcontainer_enter(workspace_folder, config)
   
   -- open in new terminal instead of detached
   vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash -c '" .. full_cmd .. "'")
-  
-  return true
-end
-
--- run devcontainer up with rebuild flags to fully rebuild the container
-function M.devcontainer_rebuild(workspace_folder, config)
-  if not M.ensure_available() then
-    return false
-  end
-  
-  workspace_folder = workspace_folder or vim.loop.cwd()
-  debug.info("rebuilding devcontainer for workspace: " .. workspace_folder)
-  
-  -- build command arguments with rebuild flags
-  local cmd_args = {
-    "devcontainer", "up",
-    "--remove-existing-container",  -- removes existing container
-    "--build-no-cache",             -- rebuilds image without cache
-    "--workspace-folder", workspace_folder
-  }
-  
-  -- add dynamic mounts if config is provided
-  if config then
-    local mount_args = M.generate_mount_args(config)
-    for _, arg in ipairs(mount_args) do
-      table.insert(cmd_args, arg)
-    end
-  end
-  
-  debug.info("executing rebuild command: " .. table.concat(cmd_args, " "))
-  
-  -- open in terminal instead of notifications for better UX
-  vim.cmd("split")
-  vim.cmd("resize 15")
-  vim.cmd("terminal " .. table.concat(cmd_args, " "))
   
   return true
 end
