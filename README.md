@@ -55,25 +55,36 @@ require("devcontainers").setup({
 
 -- with custom nvim config path (overrides auto-detection)
 require("devcontainers").setup({
-  nvim = {
-    -- custom path to your host neovim config (optional - auto-detected if not provided)
-    host_config = "/custom/path/to/nvim/config",
-    
-    -- path inside container where config will be mounted (optional)
-    container_config = "$HOME/.config/nvim",
-    
-    -- mount as readonly to protect host config (optional, default: true)
-    readonly = true,
-    
-    -- XDG directories inside container (optional)
-    xdg = {
-      data  = "$HOME/.local/share/nvim",
-      state = "$HOME/.local/state/nvim",
-      cache = "$HOME/.cache/nvim",
-    },
-  },
+  -- custom path to your host neovim config (optional - auto-detected if not provided)
+  host_config = "/custom/path/to/nvim/config",
+  
+  -- path inside container where config will be mounted (optional)
+  container_config = "$HOME/.config/nvim",
+})
+
+-- for plugin development (mounts local plugin to same path in container)
+require("devcontainers").setup({
+  debug = true,
+  -- your nvim config mounting (auto-detected)
+  
+  -- Path to local devcontainers.nvim plugin for development
+  -- This mounts the plugin to the same path inside container
+  -- so lazy.nvim `dir = "~/repos/personal/devcontainers.nvim"` works
+  dev_path = "~/repos/personal/devcontainers.nvim",
 })
 ```
+
+## Development Configuration
+
+If you're developing this plugin locally, you can use the `dev_path` configuration to mount your local plugin directory into the container:
+
+```lua
+require("devcontainers").setup({
+  dev_path = "~/repos/personal/devcontainers.nvim",
+})
+```
+
+This solves the issue where lazy.nvim expects the plugin at a specific path (like `~/repos/personal/devcontainers.nvim`) but that path doesn't exist inside the container. The `dev_path` mounts your local plugin directory to the same path inside the container, making lazy.nvim work seamlessly.
 
 ## Automatic Config Detection
 
@@ -89,7 +100,8 @@ Only existing config directories are mounted. If no config is found, the plugin 
 ### Commands
 
 - **`:DevcontainerUp`** - Starts the devcontainer with your config mounted readonly
-- **`:DevcontainerEnter`** - Enters the container, installs your Neovim version with bob, and opens in a terminal
+- **`:DevcontainerEnter`** - Enters the container, installs your Neovim version with bob, and opens nvim
+- **`:DevcontainerShell`** - Opens a shell terminal inside the devcontainer
 - **`:DevcontainerRebuild`** - Fully rebuilds the container from scratch, including running postCreateCommand
 
 ### Typical Workflow

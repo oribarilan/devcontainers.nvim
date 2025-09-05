@@ -72,34 +72,57 @@ function M.reset_cache()
 end
 
 
--- generate mount arguments for nvim config
+-- generate mount arguments for nvim config and dev paths
 function M.generate_mount_args(config)
-  if not config or not config.nvim or not config.nvim.host_config then
-    debug.debug("no nvim.host_config provided, skipping config mount")
-    return {}
+  local mount_args = {}
+  
+  -- Handle nvim config mounting
+  if config and config.host_config then
+    local utils = require("devcontainers.utils")
+    
+    -- expand and resolve symlinks for host path
+    local host_path = utils.expand_path(config.host_config)
+    host_path = utils.resolve_symlink(host_path)
+    
+    -- verify the resolved path exists
+    if utils.dir_exists(host_path) then
+      -- resolve container path variables
+      local container_path = config.container_config
+        :gsub("^%$HOME", "/home/vscode")
+        :gsub("^%${containerEnv:HOME}", "/home/vscode")
+      
+      debug.info("mounting nvim config: " .. host_path .. " -> " .. container_path)
+      vim.list_extend(mount_args, { "--mount", "type=bind,source=" .. host_path .. ",target=" .. container_path })
+    else
+      debug.warn("nvim config path does not exist: " .. host_path .. ", skipping mount")
+    end
+  else
+    debug.debug("no host_config provided, skipping config mount")
   end
   
-  local utils = require("devcontainers.utils")
-  local nvim_config = config.nvim
-  
-  -- expand and resolve symlinks for host path
-  local host_path = utils.expand_path(nvim_config.host_config)
-  host_path = utils.resolve_symlink(host_path)
-  
-  -- verify the resolved path exists
-  if not utils.dir_exists(host_path) then
-    debug.warn("nvim config path does not exist: " .. host_path .. ", skipping mount")
-    return {}
+  -- Handle dev path mounting
+  if config and config.dev_path then
+    local utils = require("devcontainers.utils")
+    
+    -- expand host path
+    local host_dev_path = utils.expand_path(config.dev_path)
+    host_dev_path = utils.resolve_symlink(host_dev_path)
+    
+    -- verify the resolved path exists
+    if utils.dir_exists(host_dev_path) then
+      -- mount to the same path inside container (maintaining the original path structure)
+      local container_dev_path = host_dev_path
+      
+      debug.info("mounting dev path: " .. host_dev_path .. " -> " .. container_dev_path)
+      vim.list_extend(mount_args, { "--mount", "type=bind,source=" .. host_dev_path .. ",target=" .. container_dev_path })
+    else
+      debug.warn("dev path does not exist: " .. host_dev_path .. ", skipping mount")
+    end
+  else
+    debug.debug("no dev_path provided, skipping dev mount")
   end
   
-  -- resolve container path variables
-  local container_path = nvim_config.container_config
-    :gsub("^%$HOME", "/home/vscode")
-    :gsub("^%${containerEnv:HOME}", "/home/vscode")
-  
-  debug.info("mounting nvim config: " .. host_path .. " -> " .. container_path)
-  
-  return { "--mount", "type=bind,source=" .. host_path .. ",target=" .. container_path }
+  return mount_args
 end
 
 -- helper function to execute devcontainer command in terminal
@@ -180,15 +203,18 @@ function M.devcontainer_enter(workspace_folder, config)
   -- build the command to run inside container
   local container_cmd = {}
   
+  -- set up PATH to include bob directories
+  table.insert(container_cmd, "export PATH=$HOME/.cargo/bin:$HOME/.local/share/bob/nvim-bin:$PATH")
+  
   if host_version then
-    -- install and use the detected version with bob
-    table.insert(container_cmd, "bob install " .. host_version)
-    table.insert(container_cmd, "bob use " .. host_version)
+    -- try to install the version in background, but don't fail if it can't
+    table.insert(container_cmd, "($HOME/.cargo/bin/bob install " .. host_version .. " >/dev/null 2>&1 &)")
+    -- give bob a moment to start the download
+    table.insert(container_cmd, "sleep 2")
   end
   
-  -- use bob's nvim path directly instead of relying on PATH
-  local nvim_cmd = host_version and "~/.local/share/bob/nvim-bin/nvim" or "nvim"
-  table.insert(container_cmd, nvim_cmd)
+  -- use the best available nvim (bob proxy, then bob path, then system nvim)
+  table.insert(container_cmd, "nvim || $HOME/.local/share/bob/nvim-bin/nvim || /usr/bin/nvim")
   
   -- join commands with &&
   local full_cmd = table.concat(container_cmd, " && ")
