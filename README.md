@@ -15,6 +15,16 @@ A Neovim plugin for seamless development container integration. This plugin mana
 - [devcontainer CLI](https://github.com/devcontainers/cli) - Install with `npm i -g @devcontainers/cli`
 - A `.devcontainer/devcontainer.json` file in your project
 
+### macOS Docker Desktop Users
+
+If you use symlinked dotfiles or your Neovim config is outside of `/Users`, you need to ensure Docker can access the resolved paths:
+
+1. Open Docker Desktop → Settings → Resources → File Sharing
+2. Add the actual path where your Neovim config is located (not just the symlink)
+3. For example: if `~/.config/nvim` symlinks to `~/.config/dotfiles/nvim`, add `~/.config/dotfiles` to file sharing
+
+Without this, you'll see "bind source path does not exist" errors when mounting your config.
+
 ## Installation
 
 Using [lazy.nvim](https://github.com/folke/lazy.nvim):
