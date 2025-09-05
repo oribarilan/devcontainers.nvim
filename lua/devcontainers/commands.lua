@@ -24,7 +24,7 @@ commands.DevcontainerUp = {
 -- DevcontainerEnter command
 commands.DevcontainerEnter = {
   name = "DevcontainerEnter",
-  desc = "enter devcontainer with nvim, auto-install host version with bob",
+  desc = "start devcontainer and enter shell (bash -l) in new WezTerm instance",
   handler = function()
     debug.info("executing DevcontainerEnter command")
     

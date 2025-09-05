@@ -181,46 +181,61 @@ function M.devcontainer_rebuild(workspace_folder, config)
   return execute_in_terminal(cmd_args, "devcontainer rebuild")
 end
 
--- run devcontainer exec command to enter the container with nvim
+-- run devcontainer up and exec command to enter the container shell
 function M.devcontainer_enter(workspace_folder, config)
   if not M.ensure_available() then
     return false
   end
   
   workspace_folder = workspace_folder or vim.loop.cwd()
-  debug.info("entering devcontainer with nvim for workspace: " .. workspace_folder)
+  debug.info("starting devcontainer and entering shell for workspace: " .. workspace_folder)
   
-  -- detect host nvim version for bob
-  local utils = require("devcontainers.utils")
-  local host_version, version_err = utils.get_nvim_version()
-  
-  if not host_version then
-    debug.warn("could not detect host nvim version: " .. (version_err or "unknown error"))
-    vim.notify("warning: could not detect host nvim version: " .. (version_err or "unknown error"), vim.log.levels.WARN)
-  else
-    debug.info("detected host nvim version: " .. host_version)
+  -- build the command chain with mount args if config is provided
+  local mount_args = ""
+  if config then
+    local args = M.generate_mount_args(config)
+    if #args > 0 then
+      mount_args = " " .. table.concat(args, " ")
+    end
   end
   
-  -- build command to use bob run for specific version (avoids conflicts)
-  local container_cmd = {}
+  -- build the full command chain: up (with mounts) then exec
+  local devcontainer_chain = "devcontainer up --workspace-folder " .. workspace_folder .. mount_args ..
+                            " && devcontainer exec --workspace-folder " .. workspace_folder .. " -- bash -l"
   
-  -- set up PATH to include bob directories
-  table.insert(container_cmd, "export PATH=$HOME/.cargo/bin:$HOME/.local/share/bob/nvim-bin:$PATH")
+  -- run in new WezTerm instance
+  local wezterm_cmd = "wezterm start -- bash -lc '" .. devcontainer_chain .. "'"
+  debug.info("launching wezterm with command: " .. wezterm_cmd)
   
-  if host_version then
-    -- install version if needed, then run it directly (no global version change)
-    table.insert(container_cmd, "$HOME/.cargo/bin/bob install " .. host_version .. " || true")
-    table.insert(container_cmd, "$HOME/.cargo/bin/bob run " .. host_version)
+  -- Always show immediate feedback
+  vim.notify("Starting devcontainer in WezTerm...", vim.log.levels.INFO)
+  
+  -- execute the command in background with error handling
+  local job_id = vim.fn.jobstart(wezterm_cmd, {
+    detach = true,
+    on_stderr = function(_, data, _)
+      if data and #data > 0 and data[1] ~= "" then
+        debug.error("wezterm stderr: " .. table.concat(data, "\n"))
+        vim.notify("WezTerm error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+      end
+    end,
+    on_exit = function(_, exit_code, _)
+      if exit_code ~= 0 then
+        debug.error("wezterm exited with code: " .. exit_code)
+        vim.notify("WezTerm failed to start (exit code: " .. exit_code .. ")", vim.log.levels.ERROR)
+      else
+        debug.info("wezterm started successfully")
+      end
+    end
+  })
+  
+  if job_id <= 0 then
+    debug.error("failed to start wezterm job")
+    vim.notify("Failed to start WezTerm job. Command: " .. wezterm_cmd, vim.log.levels.ERROR)
+    return false
   else
-    -- fallback to installed nvim or install stable
-    table.insert(container_cmd, "nvim || ($HOME/.cargo/bin/bob install stable && $HOME/.cargo/bin/bob run stable)")
+    debug.info("wezterm job started with id: " .. job_id)
   end
-  
-  local full_cmd = table.concat(container_cmd, " && ")
-  debug.info("container command: " .. full_cmd)
-  
-  -- open in new terminal
-  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash -c '" .. full_cmd .. "'")
   
   return true
 end
