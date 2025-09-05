@@ -51,6 +51,21 @@ commands.DevcontainerRebuild = {
   end,
 }
 
+-- DevcontainerShell command
+commands.DevcontainerShell = {
+  name = "DevcontainerShell",
+  desc = "Open a shell terminal inside the devcontainer",
+  handler = function()
+    debug.info("executing DevcontainerShell command")
+    
+    -- get current config
+    local devcontainers = require("devcontainers")
+    local config = devcontainers.get_config()
+    
+    dc_cli.devcontainer_exec(nil, config)
+  end,
+}
+
 -- register all commands
 function M.setup()
   debug.debug("setting up devcontainer commands")

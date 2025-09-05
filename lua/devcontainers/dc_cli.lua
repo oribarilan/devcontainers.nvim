@@ -186,16 +186,32 @@ function M.devcontainer_enter(workspace_folder, config)
     table.insert(container_cmd, "bob use " .. host_version)
   end
   
-  -- add nvim command
-  table.insert(container_cmd, "nvim")
+  -- use bob's nvim path directly instead of relying on PATH
+  local nvim_cmd = host_version and "~/.local/share/bob/nvim-bin/nvim" or "nvim"
+  table.insert(container_cmd, nvim_cmd)
   
   -- join commands with &&
   local full_cmd = table.concat(container_cmd, " && ")
   
   debug.info("container command: " .. full_cmd)
   
-  -- open in new terminal instead of detached
-  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash -c '" .. full_cmd .. "'")
+  -- open in new terminal with interactive shell to ensure PATH is loaded
+  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash -i -c '" .. full_cmd .. "'")
+  
+  return true
+end
+
+-- run devcontainer exec command to get a shell in the container
+function M.devcontainer_exec(workspace_folder, config)
+  if not M.ensure_available() then
+    return false
+  end
+  
+  workspace_folder = workspace_folder or vim.loop.cwd()
+  debug.info("opening shell in devcontainer for workspace: " .. workspace_folder)
+  
+  -- open shell in container
+  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " bash")
   
   return true
 end
