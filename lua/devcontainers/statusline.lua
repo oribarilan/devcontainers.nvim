@@ -17,6 +17,11 @@ function M.init()
   
   -- create autocmd group for statusline management
   statusline_state.augroup = vim.api.nvim_create_augroup("DevcontainersStatusline", { clear = true })
+  
+  -- setup optional plugin integrations
+  local statusline_plugins = require("devcontainers.statusline_plugins")
+  statusline_plugins.setup_available_integrations()
+  
   debug.debug("statusline system initialized")
 end
 
@@ -52,44 +57,22 @@ function M.setup_devcontainer_statusline(bufnr)
   local global_statusline = vim.api.nvim_get_option_value("statusline", { scope = "global" })
   debug.debug("global statusline: '" .. global_statusline .. "'")
   
-  -- detect if we're dealing with a statusline plugin that might interfere
-  local has_lualine = pcall(require, "lualine")
-  local has_lightline = vim.g.lightline ~= nil
-  local has_airline = vim.g.airline_theme ~= nil
-  
-  if has_lualine or has_lightline or has_airline then
-    debug.info("detected statusline plugin, using buffer variable approach")
-    -- for statusline plugins, we'll set buffer variables that can be read by the plugin
-    vim.b[bufnr].devcontainer_mode = true
-    vim.b[bufnr].devcontainer_statusline = " Devcontainer Mode "
-    
-    -- for lualine specifically, try to integrate directly
-    if has_lualine then
-      local lualine_integration = require("devcontainers.lualine_integration")
-      lualine_integration.setup_lualine()
-    end
-    
-    -- also try to override the window-local setting as fallback
-    vim.api.nvim_set_option_value("statusline", "%{get(b:, 'devcontainer_statusline', ' Devcontainer Mode ')}", { win = winid })
-  else
-    -- try setting both window-local and global statusline to ensure it works
-    -- first save the global statusline if we need to override it
-    local needs_global_override = (global_statusline ~= "" and original_statusline == "")
-    local original_global_statusline = nil
-    
-    if needs_global_override then
-      debug.info("overriding global statusline because window-local is empty")
-      -- store the global statusline for restoration
-      original_global_statusline = global_statusline
-      vim.api.nvim_set_option_value("statusline", " Devcontainer Mode ", { scope = "global" })
-    else
-      -- set window-local statusline
-      vim.api.nvim_set_option_value("statusline", " Devcontainer Mode ", { win = winid })
-    end
-  end
-  
+  -- determine if we need to override global statusline
   local needs_global_override = (global_statusline ~= "" and original_statusline == "")
   local original_global_statusline = needs_global_override and global_statusline or nil
+  
+  -- set buffer variables for statusline plugins to read
+  vim.b[bufnr].devcontainer_mode = true
+  vim.b[bufnr].devcontainer_statusline = " Devcontainer Mode "
+  
+  -- set appropriate statusline based on context
+  if needs_global_override then
+    debug.info("overriding global statusline because window-local is empty")
+    vim.api.nvim_set_option_value("statusline", " Devcontainer Mode ", { scope = "global" })
+  else
+    -- set window-local statusline directly for simplicity and predictability
+    vim.api.nvim_set_option_value("statusline", " Devcontainer Mode ", { win = winid })
+  end
   
   debug.info("set custom statusline: ' Devcontainer Mode '")
   
