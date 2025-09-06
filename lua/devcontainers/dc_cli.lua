@@ -181,14 +181,14 @@ function M.devcontainer_rebuild(workspace_folder, config)
   return execute_in_terminal(cmd_args, "devcontainer rebuild")
 end
 
--- run devcontainer up and exec command to enter the container shell
+-- run devcontainer up and exec command to enter the container with nvim
 function M.devcontainer_enter(workspace_folder, config)
   if not M.ensure_available() then
     return false
   end
   
   workspace_folder = workspace_folder or vim.loop.cwd()
-  debug.info("starting devcontainer and entering shell for workspace: " .. workspace_folder)
+  debug.info("starting devcontainer and entering with nvim for workspace: " .. workspace_folder)
   
   -- build the command chain with mount args if config is provided
   local mount_args = ""
@@ -199,42 +199,27 @@ function M.devcontainer_enter(workspace_folder, config)
     end
   end
   
-  -- build the full command chain: up (with mounts) then exec
+  -- build the full command chain: up (with mounts) then exec with nvim
   local devcontainer_chain = "devcontainer up --workspace-folder " .. workspace_folder .. mount_args ..
-                            " && devcontainer exec --workspace-folder " .. workspace_folder .. " -- bash -l"
+                            " && devcontainer exec --workspace-folder " .. workspace_folder .. " -- bash -lc 'nvim'"
   
-  -- run in new WezTerm instance
-  local wezterm_cmd = "wezterm start -- bash -lc '" .. devcontainer_chain .. "'"
+  -- use macOS open command to properly launch WezTerm GUI
+  local wezterm_cmd = string.format("open -na WezTerm --args start -- \"$SHELL\" -lc '%s'", devcontainer_chain)
   debug.info("launching wezterm with command: " .. wezterm_cmd)
   
-  -- Always show immediate feedback
-  vim.notify("Starting devcontainer in WezTerm...", vim.log.levels.INFO)
+  -- Always show user feedback
+  vim.notify("Starting WezTerm with devcontainer...", vim.log.levels.INFO)
   
-  -- execute the command in background with error handling
-  local job_id = vim.fn.jobstart(wezterm_cmd, {
-    detach = true,
-    on_stderr = function(_, data, _)
-      if data and #data > 0 and data[1] ~= "" then
-        debug.error("wezterm stderr: " .. table.concat(data, "\n"))
-        vim.notify("WezTerm error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
-      end
-    end,
-    on_exit = function(_, exit_code, _)
-      if exit_code ~= 0 then
-        debug.error("wezterm exited with code: " .. exit_code)
-        vim.notify("WezTerm failed to start (exit code: " .. exit_code .. ")", vim.log.levels.ERROR)
-      else
-        debug.info("wezterm started successfully")
-      end
-    end
-  })
+  -- Use vim.fn.system for GUI application launching
+  local result = vim.fn.system(wezterm_cmd)
   
-  if job_id <= 0 then
-    debug.error("failed to start wezterm job")
-    vim.notify("Failed to start WezTerm job. Command: " .. wezterm_cmd, vim.log.levels.ERROR)
+  if vim.v.shell_error ~= 0 then
+    debug.error("wezterm command failed with exit code: " .. vim.v.shell_error)
+    vim.notify("Failed to start WezTerm. Error: " .. result, vim.log.levels.ERROR)
     return false
   else
-    debug.info("wezterm job started with id: " .. job_id)
+    debug.info("wezterm command executed successfully")
+    vim.notify("WezTerm window should now be opening...", vim.log.levels.INFO)
   end
   
   return true
