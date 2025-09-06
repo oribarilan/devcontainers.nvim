@@ -7,7 +7,7 @@
   },
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "lts"    // or "20", "22", etc.
+      "version": "lts"
     }
   }
 }

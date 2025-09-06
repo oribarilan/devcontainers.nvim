@@ -21,6 +21,11 @@ M.defaults = {
   -- When set, this path will be mounted to the same path inside the container
   -- Example: "~/repos/personal/devcontainers.nvim"
   dev_path = nil,
+  
+  -- Control how DevcontainerEnter behaves
+  -- "external" - Opens WezTerm with nvim in container
+  -- "nested" - Opens nvim in vim terminal buffer (legacy behavior)
+  enter_mode = "external",
 }
 
 -- Validate configuration
@@ -67,6 +72,26 @@ function M.validate(config)
     local expanded_path = utils.expand_path(config.dev_path)
     if not utils.dir_exists(expanded_path) then
       return false, "dev_path does not exist: " .. expanded_path
+    end
+  end
+  
+  -- Validate enter_mode
+  if config.enter_mode ~= nil then
+    if type(config.enter_mode) ~= "string" then
+      return false, "enter_mode must be a string"
+    end
+    
+    local valid_modes = { "external", "nested" }
+    local is_valid = false
+    for _, mode in ipairs(valid_modes) do
+      if config.enter_mode == mode then
+        is_valid = true
+        break
+      end
+    end
+    
+    if not is_valid then
+      return false, "enter_mode must be one of: " .. table.concat(valid_modes, ", ")
     end
   end
   

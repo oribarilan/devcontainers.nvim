@@ -43,34 +43,69 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 All configuration is optional. The plugin works out of the box with sensible defaults:
 
+### Default Configuration
+
 ```lua
--- minimal setup - auto-detects your nvim config location
+require("devcontainers").setup({
+  -- Enable debug logging (default: false)
+  -- Options: true, false
+  debug = false,
+  
+  -- Log level for debug output (default: "INFO")
+  -- Options: "ERROR", "WARN", "INFO", "DEBUG", "TRACE"
+  log_level = "INFO",
+  
+  -- Plugin enabled state (default: true)
+  -- Options: true, false
+  enabled = true,
+  
+  -- Path to host neovim config (default: nil - auto-detected)
+  -- Options: nil (auto-detect), "/path/to/config"
+  -- Auto-detection finds: ~/.config/nvim (Linux/macOS), %LOCALAPPDATA%\nvim (Windows)
+  host_config = nil,
+  
+  -- Path inside container where config will be mounted (default: "$HOME/.config/nvim")
+  -- Options: any valid container path, supports $HOME and ${containerEnv:HOME}
+  container_config = "$HOME/.config/nvim",
+  
+  -- Path to host devcontainers.nvim plugin for development (default: nil)
+  -- Options: nil (disabled), "~/path/to/plugin"
+  -- When set, mounts plugin to same path inside container for lazy.nvim compatibility
+  dev_path = nil,
+  
+  -- Control how DevcontainerEnter behaves (default: "external")
+  -- Options: "external" (opens WezTerm with nvim), "nested" (opens nvim in vim terminal)
+  enter_mode = "external",
+})
+```
+
+### Configuration Examples
+
+```lua
+-- Minimal setup (recommended)
 require("devcontainers").setup({})
 
--- with debug logging
+-- Debug mode
 require("devcontainers").setup({
   debug = true,
-  log_level = "INFO",
+  log_level = "DEBUG",
 })
 
--- with custom nvim config path (overrides auto-detection)
+-- Custom config path
 require("devcontainers").setup({
-  -- custom path to your host neovim config (optional - auto-detected if not provided)
   host_config = "/custom/path/to/nvim/config",
-  
-  -- path inside container where config will be mounted (optional)
-  container_config = "$HOME/.config/nvim",
+  container_config = "$HOME/.config/custom-nvim",
 })
 
--- for plugin development (mounts local plugin to same path in container)
+-- Plugin development
 require("devcontainers").setup({
   debug = true,
-  -- your nvim config mounting (auto-detected)
-  
-  -- Path to local devcontainers.nvim plugin for development
-  -- This mounts the plugin to the same path inside container
-  -- so lazy.nvim `dir = "~/repos/personal/devcontainers.nvim"` works
   dev_path = "~/repos/personal/devcontainers.nvim",
+})
+
+-- Use nested terminal instead of external WezTerm
+require("devcontainers").setup({
+  enter_mode = "nested",
 })
 ```
 
@@ -101,6 +136,8 @@ Only existing config directories are mounted. If no config is found, the plugin 
 
 - **`:DevcontainerUp`** - Starts the devcontainer with your config mounted readonly
 - **`:DevcontainerEnter`** - Enters the container, installs your Neovim version with bob, and opens nvim
+  - `enter_mode = "external"`: Opens WezTerm with nvim in container (default)
+  - `enter_mode = "nested"`: Opens nvim in vim terminal buffer (legacy)
 - **`:DevcontainerShell`** - Opens a shell terminal inside the devcontainer
 - **`:DevcontainerRebuild`** - Fully rebuilds the container from scratch, including running postCreateCommand
 
