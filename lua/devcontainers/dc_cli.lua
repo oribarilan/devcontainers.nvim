@@ -253,8 +253,15 @@ function M.devcontainer_enter(workspace_folder, config)
                                            workspace_folder, nvim_cmd)
     vim.cmd("terminal " .. exec_terminal_cmd)
     
-    -- ensure terminal gets focus and enter insert mode so user can interact with inner nvim
+    -- get the terminal buffer number immediately after creation
+    local terminal_bufnr = vim.api.nvim_get_current_buf()
+    
+    -- setup custom statusline for the devcontainer terminal
     vim.schedule(function()
+      local statusline = require("devcontainers.statusline")
+      statusline.setup_devcontainer_statusline(terminal_bufnr)
+      
+      -- ensure terminal gets focus and enter insert mode so user can interact with inner nvim
       vim.cmd("startinsert")
     end)
     return true

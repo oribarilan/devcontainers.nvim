@@ -25,6 +25,9 @@ function M.init(user_config)
   
   -- Setup commands
   M.setup_commands(user_config)
+  
+  -- Initialize statusline system
+  M.setup_statusline()
 
   setup_state.initialized = true
   debug.log("Setup initialization complete")
@@ -47,6 +50,9 @@ function M.setup_autocommands(user_config)
     group = setup_state.augroup,
     callback = function()
       debug.log("Plugin cleanup on exit")
+      -- cleanup statusline system
+      local statusline = require("devcontainers.statusline")
+      statusline.cleanup_all()
     end,
   })
 end
@@ -59,6 +65,16 @@ function M.setup_commands(user_config)
   commands.setup()
 end
 
+-- Setup statusline system
+function M.setup_statusline()
+  debug.log("Setting up statusline system...")
+  
+  local statusline = require("devcontainers.statusline")
+  statusline.init()
+  
+  debug.log("Statusline system setup complete")
+end
+
 -- Cleanup setup
 function M.cleanup()
   if setup_state.augroup then
@@ -69,6 +85,10 @@ function M.cleanup()
   -- cleanup commands
   local commands = require("devcontainers.commands")
   commands.cleanup()
+  
+  -- cleanup statusline system
+  local statusline = require("devcontainers.statusline")
+  statusline.cleanup_all()
   
   setup_state.initialized = false
   debug.log("Setup cleanup complete")

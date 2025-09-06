@@ -137,7 +137,7 @@ Only existing config directories are mounted. If no config is found, the plugin 
 - **`:DevcontainerUp`** - Starts the devcontainer with your config mounted readonly
 - **`:DevcontainerEnter`** - Enters the container and automatically launches nvim with bob
   - `enter_mode = "external"`: Opens WezTerm with nvim in container (default)
-  - `enter_mode = "nested"`: Opens nvim in vim terminal buffer
+  - `enter_mode = "nested"`: Opens nvim in vim terminal buffer with custom statusline
   - Automatically detects and uses your host nvim version via bob
 - **`:DevcontainerShell`** - Opens a shell terminal inside the devcontainer
 - **`:DevcontainerRebuild`** - Fully rebuilds the container from scratch, including running postCreateCommand
