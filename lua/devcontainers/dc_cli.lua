@@ -181,11 +181,20 @@ function M.devcontainer_rebuild(workspace_folder, config)
   return execute_in_terminal(cmd_args, "devcontainer rebuild")
 end
 
--- build devcontainer command with nvim setup (shared between external and nested modes)
-function M.build_devcontainer_nvim_command(workspace_folder, config)
-  workspace_folder = workspace_folder or vim.loop.cwd()
+
+-- run devcontainer up and exec command to enter the container with nvim
+function M.devcontainer_enter(workspace_folder, config)
+  if not M.ensure_available() then
+    return false
+  end
   
-  -- build mount args if config is provided
+  workspace_folder = workspace_folder or vim.loop.cwd()
+  config = config or {}
+  local enter_mode = config.enter_mode or "external"
+  
+  debug.info("starting devcontainer and entering with nvim for workspace: " .. workspace_folder)
+  
+  -- ensure container is up first with mount args
   local mount_args = ""
   if config then
     local args = M.generate_mount_args(config)
@@ -194,91 +203,61 @@ function M.build_devcontainer_nvim_command(workspace_folder, config)
     end
   end
   
-  -- detect host nvim version for bob
-  local utils = require("devcontainers.utils")
-  local host_version, version_err = utils.get_nvim_version()
+  -- start container with mounts
+  local up_cmd = "devcontainer up --workspace-folder " .. workspace_folder .. mount_args
+  debug.info("ensuring container is up: " .. up_cmd)
   
-  local nvim_command
-  if host_version then
-    debug.info("detected host nvim version: " .. host_version)
-    -- use bob to ensure consistent version
-    nvim_command = "export PATH=$HOME/.cargo/bin:$HOME/.local/share/bob/nvim-bin:$PATH && " ..
-                   "$HOME/.cargo/bin/bob install " .. host_version .. " || true && " ..
-                   "$HOME/.cargo/bin/bob run " .. host_version
-  else
-    debug.warn("could not detect host nvim version: " .. (version_err or "unknown error"))
-    -- fallback to plain nvim
-    nvim_command = "nvim"
-  end
-  
-  -- build the full command chain: up (with mounts) then exec with nvim
-  local devcontainer_chain = "devcontainer up --workspace-folder " .. workspace_folder .. mount_args ..
-                            " && devcontainer exec --workspace-folder " .. workspace_folder .. " -- bash -lc '" .. nvim_command .. "'"
-  
-  return devcontainer_chain, workspace_folder
-end
-
--- execute devcontainer command in external terminal (WezTerm)
-local function execute_external(devcontainer_chain)
-  -- use macOS open command to properly launch WezTerm GUI
-  local wezterm_cmd = string.format("open -na WezTerm --args start -- \"$SHELL\" -lc '%s'", devcontainer_chain)
-  debug.info("launching wezterm with command: " .. wezterm_cmd)
-  
-  -- Always show user feedback
-  vim.notify("Starting WezTerm with devcontainer...", vim.log.levels.INFO)
-  
-  -- Use vim.fn.system for GUI application launching
-  local result = vim.fn.system(wezterm_cmd)
-  
-  if vim.v.shell_error ~= 0 then
-    debug.error("wezterm command failed with exit code: " .. vim.v.shell_error)
-    vim.notify("Failed to start WezTerm. Error: " .. result, vim.log.levels.ERROR)
-    return false
-  else
-    debug.info("wezterm command executed successfully")
-    vim.notify("WezTerm window should now be opening...", vim.log.levels.INFO)
-  end
-  
-  return true
-end
-
--- execute devcontainer command in nested vim terminal
-local function execute_nested(devcontainer_chain, workspace_folder)
-  debug.info("launching devcontainer in vim terminal")
-  vim.notify("Starting devcontainer with nvim in terminal...", vim.log.levels.INFO)
-  
-  -- First ensure container is up (run this in background)
-  local up_cmd = "devcontainer up --workspace-folder " .. workspace_folder
   if vim.fn.system(up_cmd) and vim.v.shell_error ~= 0 then
     vim.notify("Failed to start devcontainer", vim.log.levels.ERROR)
     return false
   end
   
-  -- Then open terminal directly in the container (like DevcontainerShell does)
-  vim.cmd("terminal devcontainer exec --workspace-folder " .. workspace_folder .. " -- bash")
+  -- detect host nvim version for bob setup
+  local utils = require("devcontainers.utils")
+  local host_version, version_err = utils.get_nvim_version()
   
-  return true
-end
-
--- run devcontainer up and exec command to enter the container with nvim
-function M.devcontainer_enter(workspace_folder, config)
-  if not M.ensure_available() then
-    return false
+  -- build nvim command with bob setup
+  local nvim_cmd
+  if host_version then
+    debug.info("detected host nvim version: " .. host_version)
+    -- setup bob and run nvim with the detected version
+    nvim_cmd = "export PATH=$HOME/.cargo/bin:$HOME/.local/share/bob/nvim-bin:$PATH && " ..
+               "$HOME/.cargo/bin/bob use " .. host_version .. " 2>/dev/null || true && " ..
+               "$HOME/.cargo/bin/bob run " .. host_version
+  else
+    debug.warn("could not detect host nvim version: " .. (version_err or "unknown error"))
+    nvim_cmd = "nvim"
   end
   
-  config = config or {}
-  local enter_mode = config.enter_mode or "external"
-  
-  debug.info("starting devcontainer and entering with nvim for workspace: " .. (workspace_folder or vim.loop.cwd()))
-  
-  -- build shared devcontainer command
-  local devcontainer_chain, ws_folder = M.build_devcontainer_nvim_command(workspace_folder, config)
-  
-  -- execute based on enter_mode
+  -- execute based on enter_mode - using reliable devcontainer exec approach
   if enter_mode == "external" then
-    return execute_external(devcontainer_chain)
+    -- use devcontainer exec directly (like DevcontainerShell) but with nvim command
+    local exec_cmd = string.format("open -na WezTerm --args start -- devcontainer exec --workspace-folder %s bash -lc '%s'",
+                                   workspace_folder, nvim_cmd)
+    debug.info("launching wezterm with nvim: " .. exec_cmd)
+    vim.notify("Starting WezTerm with nvim in devcontainer...", vim.log.levels.INFO)
+    
+    local result = vim.fn.system(exec_cmd)
+    if vim.v.shell_error ~= 0 then
+      debug.error("wezterm command failed: " .. result)
+      vim.notify("Failed to start WezTerm: " .. result, vim.log.levels.ERROR)
+      return false
+    else
+      debug.info("wezterm with nvim started successfully")
+      return true
+    end
   else -- "nested"
-    return execute_nested(devcontainer_chain, ws_folder)
+    -- use devcontainer exec directly in vim terminal with nvim command
+    vim.notify("Starting nvim in devcontainer...", vim.log.levels.INFO)
+    local exec_terminal_cmd = string.format("devcontainer exec --workspace-folder %s bash -lc '%s'",
+                                           workspace_folder, nvim_cmd)
+    vim.cmd("terminal " .. exec_terminal_cmd)
+    
+    -- ensure terminal gets focus and enter insert mode so user can interact with inner nvim
+    vim.schedule(function()
+      vim.cmd("startinsert")
+    end)
+    return true
   end
 end
 

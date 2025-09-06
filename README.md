@@ -135,9 +135,10 @@ Only existing config directories are mounted. If no config is found, the plugin 
 ### Commands
 
 - **`:DevcontainerUp`** - Starts the devcontainer with your config mounted readonly
-- **`:DevcontainerEnter`** - Enters the container, installs your Neovim version with bob, and opens nvim
+- **`:DevcontainerEnter`** - Enters the container and automatically launches nvim with bob
   - `enter_mode = "external"`: Opens WezTerm with nvim in container (default)
-  - `enter_mode = "nested"`: Opens nvim in vim terminal buffer (legacy)
+  - `enter_mode = "nested"`: Opens nvim in vim terminal buffer
+  - Automatically detects and uses your host nvim version via bob
 - **`:DevcontainerShell`** - Opens a shell terminal inside the devcontainer
 - **`:DevcontainerRebuild`** - Fully rebuilds the container from scratch, including running postCreateCommand
 
@@ -145,7 +146,7 @@ Only existing config directories are mounted. If no config is found, the plugin 
 
 1. Configure the plugin with your host config path
 2. Run `:DevcontainerUp` to start the container with proper mounts
-3. Run `:DevcontainerEnter` to enter with synchronized Neovim setup
+3. Run `:DevcontainerEnter` to automatically launch nvim in the container
 4. Your host config is live-mounted and ready to use
 5. Plugins/cache stay in container volumes for performance
 6. Use `:DevcontainerRebuild` when you change devcontainer.json or Dockerfile
