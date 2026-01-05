@@ -51,3 +51,6 @@ luacov.stats.out
 # Local dependency trees
 .rocks/
 vendor/
+
+# OpenCode local install
+.opencode/
